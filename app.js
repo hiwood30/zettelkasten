@@ -492,7 +492,14 @@ class App {
             btnNewNoteMain: document.getElementById('btn-new-note-main'),
             btnNewNoteEditor: document.getElementById('btn-new-note-editor'),
             btnToggleGraphEditor: document.getElementById('btn-toggle-graph-editor'),
-            btnHome: document.getElementById('btn-home')
+            btnHome: document.getElementById('btn-home'),
+            btnExport: document.getElementById('btn-export'),
+            btnImport: document.getElementById('btn-import'),
+            importInput: document.getElementById('import-input'),
+            backupModal: document.getElementById('backup-modal'),
+            backupText: document.getElementById('backup-text'),
+            btnCopyBackup: document.getElementById('btn-copy-backup'),
+            btnCloseModal: document.getElementById('btn-close-modal')
         };
 
         // 그래프 뷰 초기화
@@ -562,6 +569,15 @@ class App {
         // 홈 버튼
         this.$.btnHome.addEventListener('click', () => this._goHome());
 
+        // 데이터 관리
+        this.$.btnExport.addEventListener('click', () => this._exportData());
+        this.$.btnImport.addEventListener('click', () => this.$.importInput.click());
+        this.$.importInput.addEventListener('change', (e) => this._onDataImport(e));
+
+        // 백업 모달
+        this.$.btnCopyBackup.addEventListener('click', () => this._copyBackupToClipboard());
+        this.$.btnCloseModal.addEventListener('click', () => this._closeBackupModal());
+
         // 자동완성 팝업 외부 클릭 시 닫기
         document.addEventListener('click', (e) => {
             if (!this.$.autocompletePopup.contains(e.target)) {
@@ -595,6 +611,86 @@ class App {
         this._openNote(id);
         this.$.noteTitle.focus();
         this.$.noteTitle.select();
+    }
+
+    // ─── 데이터 관리 (Export/Import) ───
+    _exportData() {
+        if (!confirm('모든 데이터를 JSON 파일로 백업하고 앱을 초기화하시겠습니까?')) return;
+
+        const data = localStorage.getItem(this.store.storageKey);
+        if (!data || data === '{}') {
+            alert('내보낼 데이터가 없습니다.');
+            return;
+        }
+
+        // 파일 다운로드 준비
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+
+        // 날짜 포맷팅 (YYYYMMDD)
+        const now = new Date();
+        const dateStr = now.getFullYear() +
+            String(now.getMonth() + 1).padStart(2, '0') +
+            String(now.getDate()).padStart(2, '0');
+
+        a.href = url;
+        a.download = `zettelkasten_backup_${dateStr}.json`;
+        document.body.appendChild(a);
+        a.click();
+
+        // 정리 및 모달 표시
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            // 모달에 데이터 표시
+            this.$.backupText.value = data;
+            this.$.backupModal.classList.remove('hidden');
+        }, 100);
+    }
+
+    _copyBackupToClipboard() {
+        this.$.backupText.select();
+        document.execCommand('copy');
+        this.$.btnCopyBackup.textContent = '✅ 복사 완료!';
+        setTimeout(() => {
+            this.$.btnCopyBackup.textContent = '📋 클립보드에 복사';
+        }, 2000);
+    }
+
+    _closeBackupModal() {
+        if (confirm('데이터를 안전하게 보관하셨나요? 확인을 누르면 앱이 초기화됩니다.')) {
+            localStorage.removeItem(this.store.storageKey);
+            window.location.reload();
+        }
+    }
+
+    _onDataImport(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const json = JSON.parse(event.target.result);
+
+                // 간단한 유효성 검사 (객체인지 확인)
+                if (typeof json !== 'object' || json === null) {
+                    throw new Error('유효하지 않은 데이터 형식입니다.');
+                }
+
+                if (confirm('가져온 데이터로 현재 데이터를 덮어쓰시겠습니까?')) {
+                    localStorage.setItem(this.store.storageKey, event.target.result);
+                    window.location.reload();
+                }
+            } catch (err) {
+                alert('파일을 읽는 중 오류가 발생했습니다: ' + err.message);
+            }
+        };
+        reader.readAsText(file);
+        // 입력 초기화 (같은 파일 다시 선택 가능하게)
+        e.target.value = '';
     }
 
     // ─── 메모 열기 ───

@@ -32,6 +32,13 @@
             <button id="btn-home" class="btn-home" title="초기 화면으로 (홈)">
                 🏡
             </button>
+            <button id="btn-export" class="btn-export" title="모두 내보내기 및 초기화">
+                📤
+            </button>
+            <button id="btn-import" class="btn-import" title="데이터 가져오기">
+                📥
+            </button>
+            <input type="file" id="import-input" accept=".json" style="display:none">
         </div>
 
         <!-- 검색 -->
@@ -197,6 +204,23 @@
     </div>
 
     <script src="app.js"></script>
+    <!-- 백업 도우미 모달 -->
+    <div id="backup-modal" class="modal-overlay hidden">
+        <div class="modal-content glass-effect">
+            <div class="modal-header">
+                <h3>📤 데이터 백업 도우미</h3>
+                <button id="btn-close-modal" class="btn-icon">✕</button>
+            </div>
+            <div class="modal-body">
+                <p>파일을 찾기 어려우신 경우, 아래 데이터를 전체 복사하여 메모장 등에 안전하게 보관해 주세요.</p>
+                <textarea id="backup-text" readonly></textarea>
+                <div class="modal-actions">
+                    <button id="btn-copy-backup" class="btn-primary-large">📋 클립보드에 복사</button>
+                    <p class="modal-tip">복사 완료 후 '닫기'를 누르면 데이터가 초기화됩니다.</p>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>
