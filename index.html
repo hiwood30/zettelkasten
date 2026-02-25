@@ -20,7 +20,7 @@
         <div class="sidebar-header">
             <h1 class="logo">
                 <span class="logo-icon">🌳</span>
-                <span class="logo-text">지식의 정원</span>
+                <span class="logo-text">나를기억해</span>
             </h1>
             <button id="btn-new-note" class="btn-primary" title="새 메모 (Ctrl+N)">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
@@ -38,6 +38,7 @@
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
+            <label for="search-input" class="sr-only">메모 검색</label>
             <input id="search-input" type="text" placeholder="메모 검색..." autocomplete="off">
         </div>
 
@@ -110,6 +111,7 @@
                 </div>
                 <div id="editor-area" class="editor-area hidden">
                     <div class="editor-toolbar">
+                        <label for="note-title" class="sr-only">메모 제목</label>
                         <input id="note-title" type="text" class="note-title-input" placeholder="메모 제목..." autofocus>
                         <div class="toolbar-actions">
                             <button id="btn-new-note-editor" class="btn-icon btn-new-inline" title="새 메모 (Ctrl+N)">
@@ -145,12 +147,14 @@
                             </button>
                         </div>
                     </div>
+                    <label for="note-body" class="sr-only">메모 내용</label>
                     <textarea id="note-body" class="note-body"
                         placeholder="여기에 메모를 작성하세요...&#10;&#10;💡 [[다른 메모 제목]] 으로 링크를 만들 수 있습니다&#10;💡 #태그 로 분류할 수 있습니다"></textarea>
                     <div id="note-preview" class="note-preview hidden"></div>
 
                     <!-- 이미지 갤러리 -->
                     <div id="image-gallery" class="image-gallery hidden"></div>
+                    <label for="image-input" class="sr-only">이미지 선택</label>
                     <input type="file" id="image-input" accept="image/*" multiple style="display:none">
 
                     <!-- 백링크 섹션 -->
