@@ -233,6 +233,29 @@ code {
     transform: scale(0.95);
 }
 
+.btn-home {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.btn-home:hover {
+    background: var(--bg-tertiary);
+    transform: scale(1.08);
+}
+
+.btn-home:active {
+    transform: scale(0.95);
+}
+
 .btn-icon {
     display: flex;
     align-items: center;
@@ -705,10 +728,16 @@ code {
     color: var(--text-muted);
 }
 
-/* ─── 미리보기 버튼 활성 상태 ─── */
-.btn-preview.active {
+/* ─── 미리보기 및 그래프 버튼 활성 상태 ─── */
+.btn-preview.active,
+.btn-graph.active {
     background: var(--accent-primary);
     color: #fff;
+}
+
+/* 에디터가 활성화된 상태에서 그래프가 같이 있으면 경계선 표시 */
+.panel-editor.active.split-view {
+    border-right: 1px solid var(--glass-border);
 }
 
 /* ─── 미리보기 영역 ─── */
@@ -721,6 +750,70 @@ code {
     color: var(--text-primary);
     white-space: pre-wrap;
     word-break: break-word;
+}
+
+.external-link {
+    color: var(--accent-primary);
+    text-decoration: none;
+    border-bottom: 1px dashed var(--accent-primary);
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+
+.external-link:hover {
+    color: var(--accent-primary-hover);
+    border-bottom: 1px solid var(--accent-primary-hover);
+    background: rgba(124, 92, 252, 0.05);
+}
+
+/* ─── 태스크 항목 (**) ─── */
+.task-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 8px 0;
+    padding: 10px 14px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    border-left: 4px solid var(--accent-primary);
+    transition: all 0.3s ease;
+}
+
+.task-item.moving {
+    opacity: 0.5;
+    transform: translateX(20px);
+    pointer-events: none;
+}
+
+.task-checkbox {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--accent-primary);
+    border-radius: 4px;
+    cursor: pointer;
+    position: relative;
+    margin-top: 2px;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+
+.task-checkbox:checked {
+    background: var(--accent-primary);
+}
+
+.task-checkbox:checked::after {
+    content: '✓';
+    position: absolute;
+    color: white;
+    font-size: 14px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.task-checkbox:hover {
+    background: rgba(124, 92, 252, 0.1);
 }
 
 .note-preview .wiki-link {

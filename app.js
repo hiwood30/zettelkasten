@@ -490,7 +490,9 @@ class App {
             imageInput: document.getElementById('image-input'),
             imageGallery: document.getElementById('image-gallery'),
             btnNewNoteMain: document.getElementById('btn-new-note-main'),
-            btnNewNoteEditor: document.getElementById('btn-new-note-editor')
+            btnNewNoteEditor: document.getElementById('btn-new-note-editor'),
+            btnToggleGraphEditor: document.getElementById('btn-toggle-graph-editor'),
+            btnHome: document.getElementById('btn-home')
         };
 
         // 그래프 뷰 초기화
@@ -550,9 +552,15 @@ class App {
         // 미리보기 토글
         this.$.btnTogglePreview.addEventListener('click', () => this._togglePreview());
 
+        // 그래프 토글 (에디터 모드에서)
+        this.$.btnToggleGraphEditor.addEventListener('click', () => this._toggleGraphEditor());
+
         // 이미지 업로드
         this.$.btnUploadImage.addEventListener('click', () => this.$.imageInput.click());
         this.$.imageInput.addEventListener('change', (e) => this._onImageUpload(e));
+
+        // 홈 버튼
+        this.$.btnHome.addEventListener('click', () => this._goHome());
 
         // 자동완성 팝업 외부 클릭 시 닫기
         document.addEventListener('click', (e) => {
@@ -597,7 +605,9 @@ class App {
         this.$.noteTitle.value = note.title;
         this.$.noteBody.value = note.body;
         this.$.panelEditor.classList.add('active'); // 에디터 패널 활성화
-        this.$.panelGraph.classList.remove('active'); // 글쓰기 시 그래프 숨김 (전체 화면 에디터)
+        this.$.panelGraph.classList.remove('active'); // 기본은 그래프 숨김 (전체 화면 에디터)
+        this.$.panelEditor.classList.remove('split-view'); // 스플릿 뷰 제거
+        this.$.btnToggleGraphEditor.classList.remove('active'); // 버튼 상태 해제
         this.$.emptyState.classList.add('hidden');
         this.$.editorArea.classList.remove('hidden');
         this._renderBacklinks(id);
@@ -914,25 +924,78 @@ class App {
         const note = this.store.get(this.currentNoteId);
         if (!note) return;
 
-        // HTML 이스케이프
-        let html = this._escapeHtml(note.body);
+        // 링크/태그/URL 변환용 헬퍼 함수
+        const convertMarkdown = (text) => {
+            let html = this._escapeHtml(text);
 
-        // [[링크]] → 클릭 가능한 요소로 변환
-        html = html.replace(/\[\[(.+?)\]\]/g, (match, title) => {
-            const target = this.store.findByTitle(title);
-            if (target) {
-                return `<span class="wiki-link" data-note-id="${target.id}" title="${this._escapeHtml(title)} 메모로 이동">${this._escapeHtml(title)}</span>`;
-            } else {
-                return `<span class="wiki-link broken" title="'${this._escapeHtml(title)}' 메모가 없습니다">${this._escapeHtml(title)}</span>`;
+            // 1. [[위키링크]]
+            html = html.replace(/\[\[(.+?)\]\]/g, (match, title) => {
+                const cleanTitle = title.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+                const target = this.store.findByTitle(cleanTitle);
+                if (target) {
+                    return `<span class="wiki-link" data-note-id="${target.id}" title="${title} 메모로 이동">${title}</span>`;
+                } else {
+                    return `<span class="wiki-link broken" title="'${title}' 메모가 없습니다">${title}</span>`;
+                }
+            });
+
+            // 2. #태그
+            html = html.replace(/#([가-힣a-zA-Z0-9_\-]+)/g, (match, tag) => {
+                return `<span class="tag-inline" data-tag="${tag}">#${tag}</span>`;
+            });
+
+            // 3. [텍스트](URL) 마크다운 링크
+            html = html.replace(/\[(.+?)\]\((https?:\/\/[^\s)]+)\)/g, (match, text, url) => {
+                return `<a href="${url}" class="external-link" target="_blank" rel="noopener noreferrer" title="${url}">${text} ↗</a>`;
+            });
+
+            // 4. 일반 URL 자동 링크 (이미 태그된 부분 제외)
+            const combinedRegex = /(<a[^>]*>.*?<\/a>|<span[^>]*>.*?<\/span>|<[^>]+>)|(https?:\/\/[^\s<]+|www\.[^\s<]+\.[^\s<]+)/gi;
+            html = html.replace(combinedRegex, (match, tag, url) => {
+                if (tag) return match;
+                let href = url;
+                if (href.toLowerCase().startsWith('www.')) href = 'http://' + href;
+                return `<a href="${href}" class="external-link" target="_blank" rel="noopener noreferrer">${url} ↗</a>`;
+            });
+
+            return html;
+        };
+
+        // 줄 단위 렌더링
+        const htmlLines = note.body.split('\n').map(line => {
+            const trimmedLine = line.trim();
+            if (trimmedLine.startsWith('**')) {
+                const linkMatch = line.match(/\[\[(.+?)\]\]/);
+                const targetTitle = linkMatch ? linkMatch[1] : null;
+
+                // 표시용 텍스트만 변환 (원본 line은 data-raw-line에 안전하게 보관)
+                const displayText = line.replace('**', '').trim();
+                const processedContent = convertMarkdown(displayText);
+
+                return `<div class="task-row"><div class="task-item">
+                            <input type="checkbox" class="task-checkbox" 
+                                   ${targetTitle ? `data-target="${this._escapeHtml(targetTitle)}" data-raw-line="${this._escapeHtml(line)}"` : 'disabled title="연결된 메모가 없습니다"'} 
+                            >
+                            <span class="task-text">${processedContent}</span>
+                        </div></div>`;
             }
+            return convertMarkdown(line);
         });
 
-        // #태그 → 스타일된 요소로 변환
-        html = html.replace(/#([가-힣a-zA-Z0-9_\-]+)/g, (match, tag) => {
-            return `<span class="tag-inline" data-tag="${this._escapeHtml(tag)}">#${this._escapeHtml(tag)}</span>`;
-        });
+        this.$.notePreview.innerHTML = htmlLines.join('\n');
 
-        this.$.notePreview.innerHTML = html;
+        // 태스크 체크박스 이벤트 바인딩
+        this.$.notePreview.querySelectorAll('.task-checkbox').forEach(cb => {
+            cb.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    const row = e.target.closest('.task-item');
+                    row.classList.add('moving');
+                    setTimeout(() => {
+                        this._moveTask(e.target.dataset.rawLine, e.target.dataset.target);
+                    }, 500);
+                }
+            });
+        });
 
         // 링크 클릭 이벤트 바인딩
         this.$.notePreview.querySelectorAll('.wiki-link:not(.broken)').forEach(el => {
@@ -985,6 +1048,57 @@ class App {
             });
             this.$.notePreview.appendChild(imgContainer);
         }
+    }
+
+    /** 태스크 이동 로직 (**) */
+    _moveTask(rawLine, targetTitle) {
+        if (!this.currentNoteId || !targetTitle) return;
+
+        const sourceNote = this.store.get(this.currentNoteId);
+        const targetNote = this.store.findByTitle(targetTitle);
+
+        if (!sourceNote) return;
+
+        // 대상 메모가 없을 경우
+        if (!targetNote) {
+            alert(`'${targetTitle}' 메모를 찾을 수 없습니다. [[ ]] 링크를 먼저 확인해주세요.`);
+            this._renderPreview(); // 체크박스 상태 복구를 위해 다시 렌더링
+            return;
+        }
+
+        // 원본에서 해당 줄 제거 (HTML 엔티티 완벽 복원)
+        const lines = sourceNote.body.split('\n');
+
+        // 브라우저의 dataset은 이미 어느 정도 언이스케이프를 하지만, 안전하게 처리
+        const unescape = (str) => {
+            const txt = document.createElement('textarea');
+            txt.innerHTML = str;
+            return txt.value;
+        };
+        const unescapedRawLine = unescape(rawLine);
+
+        const lineIndex = lines.findIndex(l => l.trim() === unescapedRawLine.trim());
+        if (lineIndex !== -1) {
+            lines.splice(lineIndex, 1);
+        } else {
+            // 이스케이프 또는 공백 차이로 못 찾을 경우를 대비한 보험적 검색
+            const backupIndex = lines.findIndex(l => l.includes('**') && l.includes(targetTitle));
+            if (backupIndex !== -1) lines.splice(backupIndex, 1);
+        }
+
+        // 대상 메모에 추가 (깔끔하게 정리)
+        let cleanedContent = unescapedRawLine.replace('**', '').replace(`[[${targetTitle}]]`, '').trim();
+        const targetBody = targetNote.body.trim();
+        const newTargetBody = targetBody + (targetBody ? '\n' : '') + cleanedContent;
+
+        // 저장
+        this.store.update(sourceNote.id, { body: lines.join('\n') });
+        this.store.update(targetNote.id, { body: newTargetBody });
+
+        // UI 갱신 (목록, 현재 메모 갱신, 그래프 갱신)
+        this._renderNoteList();
+        this._openNote(sourceNote.id);
+        this._refreshGraph();
     }
 
     // ─── 검색 ───
@@ -1133,6 +1247,29 @@ class App {
         const hours = String(d.getHours()).padStart(2, '0');
         const mins = String(d.getMinutes()).padStart(2, '0');
         return `${year}.${month}.${day} ${hours}:${mins}`;
+    }
+
+    // ─── 그래프 토글 (에디터 내) ───
+    _toggleGraphEditor() {
+        if (!this.currentNoteId) return;
+        const isGraphVisible = this.$.panelGraph.classList.toggle('active');
+        this.$.panelEditor.classList.toggle('split-view', isGraphVisible);
+        this.$.btnToggleGraphEditor.classList.toggle('active', isGraphVisible);
+
+        if (isGraphVisible) {
+            this._refreshGraph();
+        }
+    }
+
+    // ─── 초기 화면으로 (홈) ───
+    _goHome() {
+        this.currentNoteId = null;
+        this.$.panelEditor.classList.remove('active');
+        this.$.panelGraph.classList.add('active');
+        this.$.emptyState.classList.remove('hidden');
+        this.$.editorArea.classList.add('hidden');
+        this._renderNoteList();
+        this._refreshGraph();
     }
 }
 
