@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Lora:ital,wght@0,400;0,700;1,400&family=Playfair+Display:wght@700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="index.css">
 </head>
@@ -20,7 +20,7 @@
         <div class="sidebar-header">
             <h1 class="logo">
                 <span class="logo-icon">🌳</span>
-                <span class="logo-text">나를기억해</span>
+                <span class="logo-text">나를기억</span>
             </h1>
             <button id="btn-new-note" class="btn-primary" title="새 메모 (Ctrl+N)">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
@@ -32,11 +32,17 @@
             <button id="btn-home" class="btn-home" title="초기 화면으로 (홈)">
                 🏡
             </button>
+            <button id="btn-theme" class="btn-theme" title="테마 변경 (클래식/다크/라이트)">
+                🎨
+            </button>
             <button id="btn-export" class="btn-export" title="모두 내보내기 및 초기화">
                 📤
             </button>
             <button id="btn-import" class="btn-import" title="데이터 가져오기">
                 📥
+            </button>
+            <button id="btn-help" class="btn-help" title="사용법 도움말">
+                ❓
             </button>
             <input type="file" id="import-input" accept=".json" style="display:none">
         </div>
@@ -201,6 +207,13 @@
     <!-- 링크 자동완성 팝업 -->
     <div id="autocomplete-popup" class="autocomplete-popup hidden">
         <ul id="autocomplete-list"></ul>
+    </div>
+
+    <!-- 도움말 팝업 -->
+    <div id="help-popup" class="help-popup hidden glass-effect">
+        <div class="help-popup-content">
+            <div class="help-loading">도움말 로딩 중...</div>
+        </div>
     </div>
 
     <script src="app.js"></script>

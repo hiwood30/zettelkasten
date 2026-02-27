@@ -15,8 +15,10 @@ class ZettelStore {
     _load() {
         try {
             const data = localStorage.getItem(this.storageKey);
+            console.log(`[ZettelStore] Loading data from ${this.storageKey}:`, data ? 'Found' : 'Missing');
             return data ? JSON.parse(data) : {};
-        } catch {
+        } catch (e) {
+            console.error('[ZettelStore] Load error:', e);
             return {};
         }
     }
@@ -153,20 +155,31 @@ class ZettelStore {
         const nodes = [];
         const edges = [];
         const allNotes = this.getAll();
+
+        // 가중치(연결 수) 계산을 위한 맵
+        const weights = {};
+        allNotes.forEach(n => weights[n.id] = 0);
+
+        allNotes.forEach(note => {
+            note.links.forEach(targetId => {
+                if (this.notes[targetId]) {
+                    edges.push({ source: note.id, target: targetId });
+                    weights[note.id]++; // 나가는 링크
+                    weights[targetId]++; // 들어오는 링크
+                }
+            });
+        });
+
         allNotes.forEach(note => {
             nodes.push({
                 id: note.id,
                 title: note.title,
-                linkCount: note.links.length,
+                weight: weights[note.id] || 0,
                 color: note.color || '#7c5cfc',
-                isChild: !!note.parentId // 하위 메모 여부 추가
-            });
-            note.links.forEach(targetId => {
-                if (this.notes[targetId]) {
-                    edges.push({ source: note.id, target: targetId });
-                }
+                isChild: !!note.parentId
             });
         });
+
         return { nodes, edges };
     }
 
@@ -228,8 +241,8 @@ class GraphView {
     /** 그래프 데이터 설정 & 렌더 시작 */
     setData(graphData) {
         this.nodes = graphData.nodes.map((n, i) => {
-            const baseRadius = Math.min(8 + n.linkCount * 3, 24);
-            const radius = n.isChild ? baseRadius * 0.5 : baseRadius; // 하위 메모면 반지름 50% 축소
+            const baseRadius = Math.min(8 + n.weight * 2.5, 30);
+            const radius = n.isChild ? baseRadius * 0.4 : baseRadius; // 하위 메모면 반지름 40% 축소
             return {
                 ...n,
                 x: Math.random() * this.canvas.width * 0.6 + this.canvas.width * 0.2,
@@ -460,6 +473,7 @@ class App {
         this.autoSaveTimer = null;
         this.autocompleteIndex = -1;
         this.isPreviewMode = false;
+        this._helpLoaded = false;
 
         // DOM 캐싱
         this.$ = {
@@ -493,13 +507,16 @@ class App {
             btnNewNoteEditor: document.getElementById('btn-new-note-editor'),
             btnToggleGraphEditor: document.getElementById('btn-toggle-graph-editor'),
             btnHome: document.getElementById('btn-home'),
+            btnTheme: document.getElementById('btn-theme'),
             btnExport: document.getElementById('btn-export'),
             btnImport: document.getElementById('btn-import'),
             importInput: document.getElementById('import-input'),
             backupModal: document.getElementById('backup-modal'),
             backupText: document.getElementById('backup-text'),
             btnCopyBackup: document.getElementById('btn-copy-backup'),
-            btnCloseModal: document.getElementById('btn-close-modal')
+            btnCloseModal: document.getElementById('btn-close-modal'),
+            btnHelp: document.getElementById('btn-help'),
+            helpPopup: document.getElementById('help-popup')
         };
 
         // 그래프 뷰 초기화
@@ -511,6 +528,9 @@ class App {
         this._bindEvents();
         this._renderNoteList();
         this._renderTags();
+
+        // 테마 초기화
+        this._initTheme();
 
         // 그래프 초기 렌더
         setTimeout(() => this._refreshGraph(), 100);
@@ -569,6 +589,9 @@ class App {
         // 홈 버튼
         this.$.btnHome.addEventListener('click', () => this._goHome());
 
+        // 테마 변경
+        this.$.btnTheme.addEventListener('click', () => this._toggleTheme());
+
         // 데이터 관리
         this.$.btnExport.addEventListener('click', () => this._exportData());
         this.$.btnImport.addEventListener('click', () => this.$.importInput.click());
@@ -577,6 +600,10 @@ class App {
         // 백업 모달
         this.$.btnCopyBackup.addEventListener('click', () => this._copyBackupToClipboard());
         this.$.btnCloseModal.addEventListener('click', () => this._closeBackupModal());
+        this.$.btnHelp.addEventListener('mouseenter', () => this._showHelp());
+        this.$.btnHelp.addEventListener('mouseleave', () => this._hideHelp());
+        this.$.helpPopup.addEventListener('mouseenter', () => this._showHelp());
+        this.$.helpPopup.addEventListener('mouseleave', () => this._hideHelp());
 
         // 자동완성 팝업 외부 클릭 시 닫기
         document.addEventListener('click', (e) => {
@@ -660,10 +687,8 @@ class App {
     }
 
     _closeBackupModal() {
-        if (confirm('데이터를 안전하게 보관하셨나요? 확인을 누르면 앱이 초기화됩니다.')) {
-            localStorage.removeItem(this.store.storageKey);
-            window.location.reload();
-        }
+        this.$.backupModal.classList.add('hidden');
+        // 데이터 초기화는 명시적으로 원하는 경우에만 하도록 로직 분리 (사용자 편의성 상향)
     }
 
     _onDataImport(e) {
@@ -691,6 +716,27 @@ class App {
         reader.readAsText(file);
         // 입력 초기화 (같은 파일 다시 선택 가능하게)
         e.target.value = '';
+    }
+
+    // ─── 테마 관리 ───
+    _initTheme() {
+        const savedTheme = localStorage.getItem('zettel-theme') || 'light';
+        document.body.setAttribute('data-theme', savedTheme);
+    }
+
+    _toggleTheme() {
+        const currentTheme = document.body.getAttribute('data-theme') || 'light';
+        let nextTheme = 'light';
+
+        if (currentTheme === 'light') nextTheme = 'dark';
+        else if (currentTheme === 'dark') nextTheme = 'classic';
+        else nextTheme = 'light';
+
+        document.body.setAttribute('data-theme', nextTheme);
+        localStorage.setItem('zettel-theme', nextTheme);
+
+        // 그래프 색상 갱신을 위해 그래프 다시 그리기
+        this._refreshGraph();
     }
 
     // ─── 메모 열기 ───
@@ -798,9 +844,25 @@ class App {
                 .trim()
                 .slice(0, 80);
             const depthIcon = depth > 0 ? '<span class="note-depth-icon">↳</span> ' : '';
+            let displayTitle = this._escapeHtml(note.title);
+            let displayPreview = this._escapeHtml(preview) || '내용 없음';
+            const query = this.$.searchInput.value.trim();
+
+            if (query && !this.activeTag) {
+                try {
+                    // 특수 문자 이스케이프: 마침표(.), 괄호(()) 등 정규식 오류 방지
+                    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const regex = new RegExp(`(${escapedQuery})`, 'gi');
+                    displayTitle = displayTitle.replace(regex, '<mark class="highlight">$1</mark>');
+                    displayPreview = displayPreview.replace(regex, '<mark class="highlight">$1</mark>');
+                } catch (e) {
+                    console.error('Highlight error:', e);
+                }
+            }
+
             li.innerHTML = `
-                <div class="note-item-title">${depthIcon}${this._escapeHtml(note.title)}</div>
-                <div class="note-item-preview">${this._escapeHtml(preview) || '내용 없음'}</div>
+                <div class="note-item-title">${depthIcon}${displayTitle}</div>
+                <div class="note-item-preview">${displayPreview}</div>
                 <div class="note-item-date">작성 ${this._formatDateTime(note.createdAt)} · 수정 ${this._formatDate(note.updatedAt)}</div>
             `;
             li.addEventListener('click', () => this._openNote(note.id));
@@ -1355,6 +1417,119 @@ class App {
         if (isGraphVisible) {
             this._refreshGraph();
         }
+    }
+
+    // ─── 도움말 팝업 ───
+    async _showHelp() {
+        this.$.helpPopup.classList.remove('hidden');
+        this.$.helpPopup.classList.add('active');
+
+        // 위치 조정 (버튼 근처)
+        const rect = this.$.btnHelp.getBoundingClientRect();
+        this.$.helpPopup.style.left = (rect.right + 15) + 'px';
+        this.$.helpPopup.style.top = Math.max(10, rect.top - 50) + 'px';
+
+        // 내용 로드 (최초 1회) - 로컬 파일 fetch 이슈 방지를 위해 하드코딩된 내용 사용
+        if (!this._helpLoaded) {
+            const manualMd = `# 🌳 나를기억해(Zettelkasten) 공식 사용설명서
+
+안녕하세요, 대표님! '나를기억해' 앱을 100% 활용하여 강력한 지식 정원을 가꿀 수 있도록 돕는 공식 가이드입니다. 🚀
+
+---
+
+## 📌 1. 기본 사용법
+
+### 메모 생성 및 편집
+- **새 메모**: 사이드바 상단의 \`+\` 버튼이나 에디터의 \`+\` 버튼을 누르세요. (단축키: \`Ctrl + N\`)
+- **자동 저장**: 입력하는 즉시 실시간으로 저장됩니다.
+- **삭제**: 휴지통 아이콘(\`🗑️\`)을 누르면 현재 메모를 삭제할 수 있습니다.
+
+### 메모 계층 구조
+- 에디터 상단의 하위 메모 아이콘을 누르면, 현재 메모의 자식 메모가 생성됩니다.
+- 사이드바에서 들여쓰기와 함께 시각적으로 구분됩니다.
+
+---
+
+## 🧠 2. 제텔카스텐 핵심 기술
+
+### 양방향 링크 (\`[[...]]\`)
+- \`[[\` 를 입력하면 기존 메모 제목들이 자동완성됩니다.
+- 클릭 시 해당 메모로 즉시 이동합니다.
+- **백링크**: 메모 하단에서 이 메모를 가리키는 다른 메모들을 볼 수 있습니다.
+
+### 태그 (\`#...\`)
+- \`#태그명\`을 입력하면 사이드바 태그 목록에 자동 집계됩니다.
+
+---
+
+## 🎨 3. 시각적 & 편의 기능
+
+### 감성 테마
+사이드바 상단의 \`🎨\` 버튼으로 테마를 전환하세요:
+- **Light / Dark / Classic** 테마 제공.
+
+### 지식 그래프 뷰
+- 메모들의 연결 상태를 한눈에 확인하고 노드를 클릭해 이동하세요.
+
+### 스마트 검색
+- 검색 시 제목과 본문의 일치하는 부분이 하이라이팅됩니다.
+
+---
+
+## 💾 4. 데이터 관리
+
+### 데이터 백업/복구
+- **내보내기 (\`📤\`)**: 데이터를 \`.json\` 파일로 저장합니다.
+- **가져오기 (\`📥\`)**: 백업 파일을 불러옵니다.
+
+---
+
+## ⌨️ 5. 단축키
+- 새 메모: \`Ctrl + N\`
+- 미리보기: \`Ctrl + P\`
+
+대표님, 위대한 아이디어를 연결해 보세요!🫡🔥`;
+
+            this._renderHelpContent(manualMd);
+            this._helpLoaded = true;
+        }
+    }
+
+    _hideHelp() {
+        this.$.helpPopup.classList.remove('active');
+        setTimeout(() => {
+            if (!this.$.helpPopup.classList.contains('active')) {
+                this.$.helpPopup.classList.add('hidden');
+            }
+        }, 300); // transition 시간과 일치
+    }
+
+    _renderHelpContent(md) {
+        const content = this.$.helpPopup.querySelector('.help-popup-content');
+
+        // 아주 간단한 마크다운 파서 (설명서 구조에 특화)
+        let html = md
+            .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+            .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+            .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+            .replace(/^\- (.*$)/gm, '<li>$1</li>')
+            .replace(/(<li>.*<\/li>)/gms, '<ul>$1</ul>')
+            .replace(/\n\n/g, '<br>')
+            .replace(/`(.*?)`/g, '<code>$1</code>')
+            .replace(/---/g, '<hr>');
+
+        // 표 변환 (단축키 섹션용)
+        if (html.includes('|')) {
+            html = html.replace(/\| (.*) \| (.*) \|\r?\n\| :--- \| :--- \|\r?\n((?:\| .* \| .* \|\r?\n?)*)/g, (match, h1, h2, body) => {
+                const rows = body.trim().split('\n').map(row => {
+                    const cols = row.split('|').filter(c => c.trim()).map(c => `<td>${c.trim()}</td>`).join('');
+                    return `<tr>${cols}</tr>`;
+                }).join('');
+                return `<table><thead><tr><th>${h1}</th><th>${h2}</th></tr></thead><tbody>${rows}</tbody></table>`;
+            });
+        }
+
+        content.innerHTML = html;
     }
 
     // ─── 초기 화면으로 (홈) ───
